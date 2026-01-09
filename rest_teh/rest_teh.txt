@@ -1,0 +1,250 @@
+# 🎉 Итоговый отчёт по проекту «Рест-Тех»
+
+Поздравляю с успешным развёртыванием! Ваш сайт `https://рест-тех.рф` полностью функционирует. Ниже представлена полная документация по проекту.
+
+## 📁 1. Структура проекта на VPS
+
+```
+/var/www/rest-tech/                    # Корневая директория проекта
+├── .venv/                             # Виртуальное окружение Python (управляется UV)
+├── pyproject.toml                     # Конфигурация и зависимости Python-проекта (создано uv init)
+├── backend/                           # Директория бэкенда (FastAPI)
+│   └── main.py                        # Основное приложение FastAPI (API + монтирование статики)
+├── frontend/                          # Директория фронтенда (React + TypeScript)
+│   ├── node_modules/                  # Зависимости Node.js
+│   ├── public/                        # Статические ресурсы
+│   ├── src/                           # Исходный код React
+│   │   ├── components/                # React-компоненты
+│   │   │   ├── Projects.tsx           # Компонент вкладки "Проектирование"
+│   │   │   ├── Supply.tsx             # Компонент вкладки "Снабжение"
+│   │   │   └── Training.tsx           # Компонент вкладки "Обучение"
+│   │   └── App.tsx                    # Главный компонент с навигацией (React Router)
+│   ├── index.html                     # Точка входа
+│   ├── package.json                   # Зависимости и скрипты Node.js
+│   ├── tsconfig.json                  # Конфигурация TypeScript 5.9
+│   └── vite.config.ts                 # Конфигурация сборщика Vite
+│   └── dist/                          # Собранные для продакшена файлы (после npm run build)
+├── .env (опционально)                 # Переменные окружения
+└── README.md (рекомендуется создать)  # Документация проекта
+```
+
+## 🛠 2. Полный технологический стек (Tech Stack)
+
+| Компонент | Технология / Инструмент | Версия | Назначение |
+|-----------|-------------------------|--------|------------|
+| **Операционная система** | Ubuntu Server | 24.04 LTS | Базовая ОС на VPS |
+| **Веб-сервер и прокси** | Nginx | 1.24+ | Обратный прокси, SSL-терминация, раздача статики |
+| **Язык бэкенда** | Python | 3.14 | Основной язык серверной части |
+| **Менеджер пакетов Python** | UV | latest | Установка Python, управление зависимостями и виртуальными окружениями |
+| **Веб-фреймворк** | FastAPI | 0.124.2 | Создание API и монтирование статики фронтенда |
+| **ASGI-сервер** | Uvicorn | latest | Запуск FastAPI-приложения |
+| **Язык фронтенда** | TypeScript | 5.9 | Типизированный JavaScript для клиентской части |
+| **UI-фреймворк** | React | 18+ | Построение пользовательского интерфейса |
+| **Менеджер пакетов JS** | npm / Node.js | 24.12 LTS | Установка зависимостей и сборка фронтенда |
+| **Сборщик фронтенда** | Vite | latest | Быстрая разработка и сборка React-проекта |
+| **Клиентская маршрутизация** | React Router DOM | latest | Навигация между вкладками без перезагрузки страницы (SPA) |
+| **Инициализатор проекта** | `create-vite` | latest | Шаблон для React + TypeScript |
+| **Системный инициализатор** | systemd | - | Запуск и управление бэкендом как службой |
+| **Фаервол** | UFW (Uncomplicated Firewall) | - | Управление сетевыми портами (открыты: 22, 80, 443) |
+| **SSL-сертификаты** | Let's Encrypt / Certbot | - | Бесплатные HTTPS-сертификаты, автоматическое обновление |
+| **Контроль версий (рекомендуется)** | Git | - | Отслеживание изменений в коде |
+
+## 🔧 3. Ключевые конфигурационные файлы и их содержимое
+
+### 3.1 Бэкенд: `/var/www/rest-tech/backend/main.py`
+```python
+from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
+
+app = FastAPI(title="РЕСТ-ТЕХ")
+
+# Путь к собранному фронтенду
+frontend_dist = Path(__file__).parent.parent / "frontend" / "dist"
+
+# === API-ЭНДПОИНТЫ (объявляются ДО монтирования статики) ===
+@app.get("/api/health")
+async def health_check():
+    return {
+        "status": "ok",
+        "service": "rest-tech-backend",
+        "python": "3.14",
+        "node": "24",
+        "frontend_built": frontend_dist.exists()
+    }
+
+# === МОНТИРОВАНИЕ СТАТИКИ ФРОНТЕНДА ===
+if frontend_dist.exists():
+    # Важно: mount("/", ...) должен быть ПОСЛЕ всех @app.get декораторов
+    app.mount("/", StaticFiles(directory=str(frontend_dist), html=True), name="frontend")
+```
+
+### 3.2 Веб-сервер: `/etc/nginx/sites-available/rest-tech.conf`
+```nginx
+server {
+    listen 80;
+    # Все доменные имена, которые должен обслуживать этот сервер
+    server_name рест-тех.рф www.рест-тех.рф xn----itbb5bggbz.xn--p1ai www.xn----itbb5bggbz.xn--p1ai 45.151.30.217;
+
+    # Перенаправление всех HTTP-запросов на HTTPS (добавлено Certbot)
+    return 301 https://$server_name$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name рест-тех.рф www.рест-тех.рф xn----itbb5bggbz.xn--p1ai www.xn----itbb5bggbz.xn--p1ai;
+
+    # SSL-сертификаты, выданные Let's Encrypt (пути управляются Certbot)
+    ssl_certificate /etc/letsencrypt/live/xn----itbb5bggbz.xn--p1ai/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/xn----itbb5bggbz.xn--p1ai/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+    # Корневая директория статических файлов фронтенда
+    root /var/www/rest-tech/frontend/dist;
+    index index.html;
+
+    # Основное правило для SPA (Single Page Application)
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # Проксирование API-запросов на бэкенд FastAPI
+    location /api {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Кэширование статических ресурсов на стороне клиента
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+}
+```
+
+### 3.3 Системная служба: `/etc/systemd/system/rest-tech.service`
+```ini
+[Unit]
+Description=REST-Tech Backend (FastAPI)
+After=network.target
+
+[Service]
+User=fun4mass
+Group=fun4mass
+WorkingDirectory=/var/www/rest-tech
+Environment="PATH=/var/www/rest-tech/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+ExecStart=/var/www/rest-tech/.venv/bin/uvicorn backend.main:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+## 🌐 4. Данные проекта и настройки сервисов
+
+### 4.1 Учётные данные и идентификаторы
+*   **Домен сайта**: `рест-тех.рф` (Punycode: `xn----itbb5bggbz.xn--p1ai`)
+*   **Публичный IPv4-адрес VPS**: `45.151.30.217`
+*   **Пользователь на VPS**: `fun4mass`
+*   **Путь к проекту на VPS**: `/var/www/rest-tech`
+*   **Email для уведомлений Let's Encrypt**: `fun4mass@yandex.ru`
+
+### 4.2 Настройка DNS в **Beget** (Панель управления: `beget.com`)
+Для домена `рест-тех.рф` были настроены следующие DNS-записи:
+
+| Тип записи | Имя (Поддомен) | Значение / Адрес | Назначение |
+|------------|----------------|------------------|------------|
+| **A**      | `@` (основная) | `45.151.30.217`  | Основная запись, связывает домен с IP-адресом VPS. |
+| **A**      | `www`          | `45.151.30.217`  | Запись для поддомена `www.рест-тех.рф`. |
+| **MX**     | `@`            | `10 mx1.beget.com` | Серверы входящей почты (оставлены на Beget). |
+| **MX**     | `@`            | `20 mx2.beget.com` | Резервный сервер почты. |
+| **TXT**    | `@`            | `v=spf1 redirect=beget.com` | SPF-запись для защиты от спама (оставлена на Beget). |
+| **TXT**    | `@`            | `yandex-verification:...` | Запись для подтверждения в Яндекс.Вебмастер. |
+
+**Итог**: Домен делегирован на серверы Beget, но A-записи направляют трафик на VPS в Cloud.ru.
+
+### 4.3 Настройка VPS в **Cloud.ru** (Консоль управления: `cloud.ru`)
+1.  **Виртуальная машина (ВМ)**:
+    *   **Имя**: `vm-404e93`
+    *   **Образ ОС**: Ubuntu 24.04 LTS
+    *   **Конфигурация**: Минимум 1 vCPU, 2 ГБ RAM, 20+ ГБ SSD (детали уточняются в консоли).
+
+2.  **Сетевая настройка и безопасность**:
+    *   **Публичный IP**: `45.151.30.217` (статический, назначен провайдером Cloud.ru).
+    *   **Правила групп безопасности (Security Groups / Firewall)**:
+        | Направление | Протокол | Порт | Источник | Действие | Назначение |
+        |-------------|----------|------|----------|----------|------------|
+        | Входящий | TCP | 22 | Ваш IP / `0.0.0.0/0` | Разрешить | SSH-доступ для управления. |
+        | Входящий | TCP | 80 | `0.0.0.0/0` | Разрешить | HTTP-трафик для перенаправления на HTTPS и проверки Certbot. |
+        | Входящий | TCP | 443 | `0.0.0.0/0` | Разрешить | **Основной HTTPS-трафик** сайта. |
+        | Исходящий | Любой | Любой | `0.0.0.0/0` | Разрешить | Разрешить исходящие соединения (установка пакетов, API). |
+
+3.  **Доступ**:
+    *   **Метод аутентификации**: SSH-ключ `id_rsa` с локального ПК.
+    *   **Пользователь по умолчанию**: `fun4mass`.
+
+## 🔄 5. Жизненный цикл проекта: основные команды управления
+
+### 5.1 Разработка и обновление кода
+*   **Обновить фронтенд (после изменений в `frontend/src/`)**:
+    ```bash
+    cd /var/www/rest-tech/frontend
+    npm run build
+    # Бэкенд автоматически раздаст новые файлы из `frontend/dist/`
+    ```
+*   **Обновить зависимости бэкенда**:
+    ```bash
+    cd /var/www/rest-tech
+    source .venv/bin/activate
+    uv pip install <пакет>
+    ```
+*   **Обновить зависимости фронтенда**:
+    ```bash
+    cd /var/www/rest-tech/frontend
+    npm install <пакет>
+    ```
+
+### 5.2 Мониторинг и логи
+*   **Просмотр логов бэкенда (FastAPI)**:
+    ```bash
+    sudo journalctl -u rest-tech.service -f
+    ```
+*   **Просмотр логов веб-сервера (Nginx)**:
+    ```bash
+    # Ошибки
+    sudo tail -f /var/log/nginx/error.log
+    # Весь доступный трафик
+    sudo tail -f /var/log/nginx/access.log
+    ```
+*   **Проверка статуса всех сервисов**:
+    ```bash
+    sudo systemctl status nginx rest-tech.service
+    ```
+
+### 5.3 Безопасность и обслуживание
+*   **Обновление SSL-сертификата (выполняется автоматически, вручную проверить)**:
+    ```bash
+    sudo certbot renew --dry-run
+    ```
+*   **Обновление системных пакетов на VPS**:
+    ```bash
+    sudo apt update && sudo apt upgrade -y
+    ```
+
+## 🚀 6. Архитектура проекта в продакшене
+```
+[Клиентский браузер]
+        ↓ (HTTPS запрос на 443 порт)
+[Cloud.ru VPS: Nginx]
+        ├───→ (Запросы к /api/*) → [FastAPI на 127.0.0.1:8000]
+        └───→ (Все остальные запросы) → [Статика React из /frontend/dist]
+```
+
+Ваш сайт представляет собой современное **одностраничное приложение (SPA)** на React, которое обслуживается быстрым **веб-сервером Nginx** с автоматическим **HTTPS**, а бизнес-логика может быть расширена через **API на FastAPI**.
+
+Проект полностью готов к развитию: вы можете добавлять новые компоненты во фронтенде, создавать API-эндпоинты в бэкенде и наполнять разделы контентом.

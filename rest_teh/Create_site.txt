@@ -1,0 +1,365 @@
+Отлично! У вас есть готовый, современный сайт, созданный с помощью AI агента в Figma, и полная техническая документация. Теперь нужно перенести этот дизайн из Figma в ваш реальный проект на VPS, следуя лучшим практикам UX.
+
+Вот подробный гайд по работе с Figma и интеграции дизайна, состоящий из 6 ключевых этапов.
+
+## 🎯 Этап 1: Анализ и подготовка дизайн-макета
+
+Перед вёрсткой тщательно изучите макет в Figma, чтобы избежать ошибок при переносе.
+
+1.  **Проверка дизайн-системы в Figma:**
+    *   Откройте панель **«Assets»**. Убедитесь, что все цвета, текстовые стили (H1, H2, Body) и компоненты (Кнопки, Карточки) оформлены как **«Styles»** и **«Components»**. Это основа для единообразия.
+    *   **Экспортируйте стили:** В **«Dev Mode»** (`Shift+I`) скопируйте значения всех цветов (например, `brand.500: #0066cc`) и шрифтов.
+    *   **Изучите адаптивность:** Посмотрите, как дизайнер спроектировал поведение макета на разных экранах. Обратите внимание на изменения: размера шрифта, сетки (например, с 3 колонок на 1), скрытия элементов.
+
+2.  **Создание чек-листа компонентов:**
+    Составьте таблицу, что нужно создать в коде. Пример для главной страницы:
+    | Компонент (в коде) | Тип | Кол-во | Особенность из Figma | Состояния |
+    | :--- | :--- | :--- | :--- | :--- |
+    | `GradientButton` | UI | 2 вида | Градиент, тень при hover | Default, Hover, Disabled |
+    | `ServiceCard` | Секция/Блок | 6 шт | Эффект поднятия при наведении | Default, Hover |
+    | `TrustBadge` | UI | 3 шт | Иконка + текст | — |
+    | `HeroSection` | Секция/Блок | 1 | Фон-градиент, сложная сетка | — |
+
+## 🛠 Этап 2: Создание темы в проекте на основе макета
+
+Создайте или обновите файл темы (`src/theme.ts`), используя скопированные из Figma токены.
+
+```typescript
+// src/theme.ts
+import { extendTheme } from '@chakra-ui/react';
+
+const theme = extendTheme({
+  colors: {
+    // Основные цвета из дизайн-системы Figma
+    brand: {
+      50: '#f0f9ff',
+      500: '#0066cc', // Основной синий из макета
+      600: '#0052a3',
+    },
+    gradient: {
+      bluePurple: 'linear-gradient(135deg, #0066cc 0%, #8b5cf6 100%)', // Градиент из хедера
+      orangeRed: 'linear-gradient(135deg, #f97316 0%, #dc2626 100%)', // Градиент для "Обучения"
+    }
+  },
+  fonts: {
+    heading: `'Inter', -apple-system, BlinkMacSystemFont, sans-serif`, // Шрифт из макета
+    body: `'Inter', -apple-system, BlinkMacSystemFont, sans-serif`,
+  },
+  shadows: {
+    // Кастомные тени для соответствия Figma
+    'brand-lg': '0 10px 30px rgba(0, 102, 204, 0.15)',
+    'hover-xl': '0 20px 40px rgba(0, 0, 0, 0.1)',
+  },
+  components: {
+    Button: {
+      variants: {
+        // Создаём вариант кнопки, полностью соответствующий дизайну
+        'brand-gradient': {
+          bgGradient: 'linear(to-r, brand.500, brand.600)',
+          color: 'white',
+          borderRadius: 'xl',
+          fontSize: 'lg',
+          fontWeight: 'semibold',
+          px: 8,
+          py: 4,
+          _hover: {
+            bgGradient: 'linear(to-r, brand.600, brand.700)',
+            transform: 'translateY(-2px)',
+            shadow: 'hover-xl',
+            transition: 'all 0.3s ease',
+          },
+        },
+      },
+    },
+    Card: {
+      baseStyle: {
+        container: {
+          borderRadius: '2xl',
+          boxShadow: 'lg',
+          overflow: 'hidden',
+          transition: 'all 0.3s ease',
+          _hover: {
+            transform: 'translateY(-4px)',
+            boxShadow: 'xl',
+          },
+        },
+      },
+    },
+  },
+});
+
+export default theme;
+```
+
+## 🧩 Этап 3: Пошаговый перенос ключевых компонентов
+
+Разбейте сложные макеты из Figma на мелкие переиспользуемые компоненты.
+
+**Пример 1: Перенос адаптивной сетки статистики из `Home.tsx`**
+
+```tsx
+// src/components/Home/StatsSection.tsx
+import { Box, SimpleGrid, Text, VStack } from '@chakra-ui/react';
+import { TrendingUp, Users, Calendar } from 'lucide-react';
+
+const stats = [
+  { icon: TrendingUp, value: '200+', label: 'Реализованных проектов' },
+  { icon: Users, value: '500+', label: 'Довольных клиентов' },
+  { icon: Calendar, value: '15+', label: 'Лет на рынке' },
+];
+
+export const StatsSection = () => {
+  return (
+    <SimpleGrid 
+      columns={{ base: 1, md: 3 }} // Адаптивная сетка: 1 колонка на мобильном, 3 на планшете+
+      spacing={{ base: 8, md: 12 }} // Отступы также адаптивны
+      maxW="6xl" 
+      mx="auto" 
+      py={{ base: 16, md: 24 }} // Адаптивные вертикальные отступы
+    >
+      {stats.map((stat) => (
+        <VStack key={stat.label} spacing={4}>
+          <Box p={4} borderRadius="2xl" bgGradient="linear(to-br, blue.50, purple.50)">
+            <stat.icon size={32} className="text-blue-600" /> {/* Иконка из макета */}
+          </Box>
+          <Text fontSize={{ base: '4xl', md: '5xl' }} fontWeight="bold" bgGradient="linear(to-r, blue.600, purple.600)" bgClip="text">
+            {stat.value}
+          </Text>
+          <Text textAlign="center" color="gray.600" fontSize="lg">
+            {stat.label}
+          </Text>
+        </VStack>
+      ))}
+    </SimpleGrid>
+  );
+};
+```
+
+**Пример 2: Создание интеллектуального фильтра для `Supply.tsx` из макета**
+
+Макет Figma показывает интерактивные фильтры. Реализуем их с сохранением логики UI/UX.
+
+```tsx
+// src/components/Supply/EquipmentFilter.tsx
+import { useState } from 'react';
+import { HStack, Button, Wrap, WrapItem, useBreakpointValue } from '@chakra-ui/react';
+
+const categories = [
+  { id: 'all', label: 'Всё оборудование', icon: 'Grid' },
+  { id: 'cooking', label: 'Тепловое', icon: 'Flame' },
+  { id: 'cold', label: 'Холодильное', icon: 'Snowflake' },
+  { id: 'prep', label: 'Подготовка', icon: 'ChefHat' },
+  // ... другие категории из макета
+];
+
+export const EquipmentFilter = ({ onFilterChange }) => {
+  const [activeFilter, setActiveFilter] = useState('all');
+  // Адаптивное поведение: на мобильном фильтры переносятся, на десктопе в строку
+  const filterDirection = useBreakpointValue({ base: 'wrap', md: 'row' });
+
+  const handleFilterClick = (categoryId) => {
+    setActiveFilter(categoryId);
+    onFilterChange(categoryId); // Передаём выбор родителю
+  };
+
+  return (
+    <Wrap spacing={3} justify="center" py={6}>
+      {categories.map((category) => (
+        <WrapItem key={category.id}>
+          <Button
+            size="lg"
+            variant={activeFilter === category.id ? 'solid' : 'outline'}
+            colorScheme={activeFilter === category.id ? 'blue' : 'gray'}
+            // Динамические классы Tailwind для точного соответствия Figma
+            className={`
+              rounded-full px-6 py-3 font-medium transition-all
+              ${activeFilter === category.id 
+                ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg' 
+                : 'border-2 border-gray-200 hover:border-blue-300'
+              }
+            `}
+            leftIcon={<category.icon size={18} />}
+            onClick={() => handleFilterClick(category.id)}
+          >
+            {category.label}
+          </Button>
+        </WrapItem>
+      ))}
+    </Wrap>
+  );
+};
+```
+
+## 🚀 Этап 4: Реализация улучшений UX из макета
+
+**1. Внедрение плавной навигации и визуального состояния:**
+
+```tsx
+// Улучшенный Header.tsx - добавление индикатора прокрутки и плавного скролла
+import { useEffect, useState } from 'react';
+import { Link, useLocation } from 'react-router-dom';
+
+export const Header = () => {
+  const [scrolled, setScrolled] = useState(false);
+  const location = useLocation();
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 20);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Плавный скролл к якорям на той же странице
+  const handleSmoothScroll = (hash) => {
+    if (location.pathname === '/') {
+      const element = document.querySelector(hash);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+  };
+
+  return (
+    <header 
+      className={`
+        sticky top-0 z-50 transition-all duration-300
+        ${scrolled 
+          ? 'bg-white/90 backdrop-blur-lg shadow-lg py-3' 
+          : 'bg-transparent py-5'
+        }
+      `}
+    >
+      {/* Навигация с активным состоянием, как в макете */}
+      <nav>
+        <Link 
+          to="/projects" 
+          className={`
+            relative font-medium px-4 py-2 rounded-lg transition-colors
+            ${location.pathname === '/projects' 
+              ? 'text-blue-600 bg-blue-50' 
+              : 'text-gray-700 hover:text-blue-600'
+            }
+            after:${location.pathname === '/projects' ? 'content-[""]' : ''}
+            after:absolute after:bottom-0 after:left-1/4 after:w-1/2 after:h-0.5
+            after:bg-gradient-to-r after:from-blue-600 after:to-purple-600
+            after:rounded-full
+          `}
+        >
+          Проектирование
+        </Link>
+        {/* ... остальные ссылки */}
+      </nav>
+    </header>
+  );
+};
+```
+
+**2. Динамическая загрузка изображений через Unsplash API:**
+```typescript
+// Создайте сервисный файл src/services/imageService.ts
+const UNSPLASH_ACCESS_KEY = 'ваш_ключ'; // Вынесите в .env
+
+export const loadOptimizedImages = async (query: string, count: number = 3) => {
+  try {
+    const response = await fetch(
+      `https://api.unsplash.com/search/photos?query=${encodeURIComponent(query)}&per_page=${count}&client_id=${UNSPLASH_ACCESS_KEY}`
+    );
+    const data = await response.json();
+    return data.results.map(img => ({
+      url: `${img.urls.raw}&auto=format&fit=crop&w=800&q=80`, // Оптимизация на лету
+      alt: img.alt_description || query,
+      author: img.user.name,
+      blurHash: img.blur_hash // Для эффекта placeholder
+    }));
+  } catch (error) {
+    console.error('Ошибка загрузки изображений:', error);
+    return [];
+  }
+};
+
+// Использование в компоненте Projects.tsx
+import { useEffect, useState } from 'react';
+import { loadOptimizedImages } from '../services/imageService';
+
+const ProjectsGallery = () => {
+  const [projectImages, setProjectImages] = useState([]);
+
+  useEffect(() => {
+    const loadImages = async () => {
+      const images = await loadOptimizedImages('restaurant interior design modern', 3);
+      setProjectImages(images);
+    };
+    loadImages();
+  }, []);
+
+  return (
+    <div className="grid md:grid-cols-3 gap-6">
+      {projectImages.map((img, idx) => (
+        <div key={idx} className="relative rounded-2xl overflow-hidden shadow-lg">
+          <img 
+            src={img.url} 
+            alt={img.alt}
+            loading="lazy" // Ленивая загрузка для производительности
+            className="w-full h-64 object-cover transition-transform duration-700 hover:scale-110"
+          />
+          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4">
+            <p className="text-white text-sm">Автор: {img.author}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+```
+
+## 📊 Этап 5: Контрольный список внедрения
+
+Следуйте этому порядку для систематического переноса:
+
+| Приоритет | Компонент | Соответствие макету | Статус | Примечания |
+|:---|:---|:---|:---|:---|
+| **P0** | Дизайн-система (тема) | ✅ Точные цвета, шрифты, тени | Готово | Основа для всех компонентов |
+| **P0** | Адаптивная сетка и Layout | ✅ Брейкпоинты из Figma | Готово | Tailwind: `grid-cols-1 md:grid-cols-2 lg:grid-cols-3` |
+| **P1** | Header с навигацией | ✅ Sticky, бургер-меню, активные состояния | В работе | Добавить плавный скролл |
+| **P1** | Герой-секции (Hero) | ✅ Градиенты, кнопки, отступы | Готово | Картинки через Unsplash API |
+| **P1** | Карточки услуг/товаров | ✅ Hover-эффекты, тени, закругления | Готово | Компонент `<ServiceCard />` |
+| **P2** | Интерактивные фильтры (Supply) | ✅ Состояния кнопок, логика фильтрации | В работе | Связь с будущим API |
+| **P2** | Переключение табов (Training) | ✅ Анимация перехода, контент | Готово | Компонент `<TabSwitcher />` |
+| **P3** | Формы обратной связи | ⏳ Валидация, состояния отправки | В планах | Интеграция с `/api/contact` |
+| **P3** | Анимации и микро-интеракции | ⏳ Плавные переходы, hover | В планах | Библиотека Framer Motion |
+
+## 🔍 Этап 6: Тестирование и QA перед деплоем
+
+1.  **Визуальное сравнение:** Откройте макет Figma и вашу локальную сборку (`npm run dev`) в двух окнах. Поочерёдно проверьте каждый блок:
+    *   **Размеры и отступы:** Используйте инструменты разработчика или плагин Pixel Parallel.
+    *   **Цвета:** Сравните через пипетку в DevTools и Figma.
+    *   **Шрифты:** Убедитесь в совпадении семейства, размера, межстрочного интервала (`line-height`).
+
+2.  **Тестирование адаптивности:**
+    ```bash
+    # Запустите Lighthouse для аудита производительности и доступности
+    # В Chrome DevTools вкладка "Lighthouse"
+    ```
+    Проверьте основные брейкпоинты: 360px (малый телефон), 768px (планшет), 1440px (десктоп из макета).
+
+3.  **Проверка интерактивности:**
+    *   Все кнопки и ссылки должны иметь визуальный `hover`-эффект.
+    *   Формы показывают понятные сообщения об ошибках.
+    *   Фильтры на странице "Снабжение" мгновенно обновляют список.
+
+4.  **Интеграционный тест:**
+    ```bash
+    # Соберите проект и проверьте, нет ли ошибок
+    cd /var/www/rest-tech/frontend
+    npm run build
+    # Если сборка успешна, скопируйте dist/ на сервер
+    ```
+
+После завершения всех этапов у вас будет сайт, который **точно соответствует макету Figma**, обладает **улучшенным UX** за счёт плавных анимаций и интерактивности и **полностью готов** к подключению backend API.
+
+**Какой следующий шаг вам наиболее интересен?**
+1.  Детальная настройка одной из сложных секций (например, фильтруемого каталога с API)?
+2.  Оптимизация производительности и показателей Lighthouse?
+3.  Написание автоматических тестов для ключевых компонентов?
